@@ -1,0 +1,172 @@
+---
+title: "Practical_Machine_Learning_Assignment"
+author: "Gianluca Kikidis"
+date: "28/6/2021"
+output: html_document
+---
+## Practical Machine Learning Assignment
+### By Gianluca Kikidis
+
+# Prediction models
+
+The goal in this assignment project is to test different prediction models and
+see which one fits best in order to predict  the manner in which people did 
+certain exercises. This is the "classe" variable in the training set. 
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. 
+
+
+First, I load our packages needed:
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+library(corrplot)
+library(gbm)
+library(rattle)
+```
+
+
+Then, I load the testing and training set (i load them locally because of 
+computer related problems)
+```{r}
+training <- read.csv("pml-training.csv", stringsAsFactors = F,na.strings = c("","NA","#DIV/0!"))
+testing <- read.csv("pml-testing.csv", stringsAsFactors = F,na.strings = c("","NA","#DIV/0!"))
+dim(training);dim(testing)
+```
+
+Next, I create the data partition with the training set and testing set, i chose 
+a p of 0.75, making 25% of the data set a testing set. 
+
+```{r}
+inTrain <- createDataPartition(training$classe, p = 0.75, list = F)
+training <- training[inTrain,]
+testing <- training[-inTrain,]
+dim(training); dim(testing)
+```
+
+
+## Data pre processing
+
+
+I remove near zero variables that won't be needed for further analysis:
+```{r}
+zero <- nearZeroVar(training)
+training <- training[, -zero]
+testing  <- testing[, -zero]
+```
+
+I also remove variables that are over 95% NA
+```{r}
+na    <- sapply(training, function(x) mean(is.na(x))) > 0.95
+training <- training[, na==FALSE]
+testing  <- testing[, na==FALSE]
+```
+
+
+And finally i remove identification correlated variables that i do not need:
+```{r}
+training <- training[, -(1:5)]
+testing  <- testing[, -(1:5)]
+dim(training); dim(testing)
+```
+
+
+## Prediction models
+
+Now, with the Pre process done i start the first prediction model (my favorite), 
+which is random forest:
+
+```{r}
+set.seed(1234)
+control <- trainControl(method="cv", number=3, verboseIter=FALSE)
+RandomForest <- train(classe ~ ., data=training, method="rf",
+                          trControl=control)
+RandomForest$finalModel
+```
+
+
+I create a confusion matrix for the model and make a prediction:
+```{r}
+testing$classe <- as.factor(testing$classe)
+RForestPrediction <- predict(RandomForest, testing)
+RForestconfmat <- confusionMatrix(RForestPrediction, testing$classe)
+RForestconfmat
+```
+
+
+Here is the plot also: 
+
+```{r}
+plot(RForestconfmat$table, col = RForestconfmat$byClass, 
+           main = paste("Random Forest - Accuracy"))
+```
+```{r}
+RForestconfmat$overall['Accuracy']
+```
+And the accuracy, which is: 100%
+
+
+## Generalized Boosted Model
+
+
+I tried generalized boosted models, but sadly my pc could not handle it. I tried
+it on another PC too, but it might be to heavy and ram eating... therefore i just
+post the code i would have used for this model:
+```{r}
+# set.seed(1234)
+# gbm<- train(classe~., data=training, method="gbm", verbose= FALSE)
+# gbm$finalmodel
+
+# gbm$overall
+# plot(gbm$table, col = gbm$byClass, 
+#     main = paste("GBM - Accuracy =", round(gbm$overall['Accuracy'], 4)))
+```
+
+
+## Decision tree
+
+Next step is the decision tree model: 
+
+```{r}
+DecTree<- train(classe ~. , data=training, method= "rpart")
+```
+
+Here is the plot:
+```{r}
+fancyRpartPlot(DecTree$finalModel)
+```
+And the results:
+```{r}
+DecTree$results
+```
+Next, i once again make the prediction and create a confusion matrix:
+```{r}
+set.seed(1234)
+DecTree_pred<- predict(DecTree, testing)
+confusionMatrix(DecTree_pred, testing$classe)
+```
+The accuracy here is only 49%. 
+
+## Conclusion
+
+In conclusion, Random Forest has a higher accuracy compared to Decision Trees, 
+and my guess would be: slightly higher than GBM also, with a 100% accuracy.
+
+## Final Prediction
+
+This is hence the final prediction with Random Forest:
+```{r}
+Prediction = predict(RandomForest, testing)
+head(Prediction)
+```
